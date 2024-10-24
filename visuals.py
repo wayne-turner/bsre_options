@@ -1,29 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
-class BSREOptions:
-    def __init__(self, V0, K, T, r0, kappa_r, theta_r, sigma_r, v0, kappa_v, theta_v, sigma_v, rho, lease_income, M, I):
-        self.V0, self.K, self.T, self.lease_income = V0, K, T, lease_income
-        self.r0 = r0
-        self.kappa_r, self.theta_r, self.sigma_r = kappa_r, theta_r, sigma_r
-        self.v0, self.kappa_v, self.theta_v, self.sigma_v, self.rho = v0, kappa_v, theta_v, sigma_v, rho
-        self.M, self.I = M, I
-
-    def simulate_paths(self):
-        dt = self.T / self.M
-        V = np.zeros((self.M + 1, self.I))
-        r = np.zeros_like(V)
-        V[0] = self.V0
-        r[0] = self.r0
-        
-        for t in range(1, self.M + 1):
-            z1 = np.random.standard_normal(self.I)
-            z2 = np.random.standard_normal(self.I)
-            r[t] = np.maximum(r[t-1] + self.kappa_r * (self.theta_r - r[t-1]) * dt + self.sigma_r * np.sqrt(dt) * z2, 0)
-            adjusted_lease_income = self.lease_income * np.exp(-r[t-1] * dt)
-            V[t] = V[t-1] * np.exp((adjusted_lease_income / V[t-1] - 0.5 * self.v0) * dt + np.sqrt(self.v0 * dt) * z1)
-
-        return V, r
+from bsre_options import BSREOptions
 
 # initialize
 model = BSREOptions(
