@@ -54,7 +54,7 @@ This guide provides a quick overview of how to use the `BSREOptions` class to si
 ### Initialization
 
 ```python
-from BSREOptions import BSREOptions
+from bsre_options import BSREOptions
 
 model = BSREOptions(
     V0=200000,  # Initial real estate value
