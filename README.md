@@ -95,10 +95,7 @@ model = BSREOptions(
 | `I`          | `int`        | Number of Monte Carlo paths.                                                                                              | 1,000 – 100,000+       |
 | `seed`       | `int`/`None` | Seed for `numpy.random.default_rng`. Controls reproducibility; `None` uses entropy-based seeding.                         | Any integer or `None`  |
 
-Basic validation is enforced:
-* `q` must be non-negative.
-* `rho` must lie in `[-1, 1]`.
-* `M` and `I` must be positive integers.
+
 
 ## Quickstart
 This section sketches a minimal workflow using the core engine and the plotting utilities.
@@ -147,9 +144,6 @@ print(V.shape)  # (M + 1, I)
 print(r.shape)  # (M + 1, I)
 ```
 
-Here:
-* `V[t, i]` is the property value at time step `t` on path `i`.
-* `r[t, i]` is the short rate at the same point.
 
 ### 3. Command-line usage
 After installation, a small CLI is available:
@@ -284,20 +278,17 @@ price, stderr, (ci_low, ci_high) = model.value_option(price_only=False)
 ```
 
 you additionally obtain:
-
 * `stderr`: the standard error of the Monte Carlo estimate.
 * `(ci_low, ci_high)`: a 95% confidence interval based on a normal approximation.
 
-Interpretation guidelines:
 
+Interpretation guidelines:
 * A **higher** option value indicates more valuable upside at maturity, given the current property value, strike, and process parameters.
 * Values **close to zero** indicate an option that is at, or out of, the money in most simulated scenarios under the current assumptions.
 * The **confidence interval width** reflects Monte Carlo noise; tightening it requires more paths (`I`) or variance-reduction techniques (not implemented here).
 
 
-
 ## Conclusion
-
 * **Educational focus**: BSREOptions is designed as a compact, inspectable example of Monte Carlo pricing with stochastic short rates and variance in a real-estate context.
 * **Extensible**: The structure is intentionally simple, making it a convenient starting point for experimenting with alternative dynamics, payoffs, or calibration schemes.
 * **Practical takeaway**: Use the model to explore how assumptions about rates, variance, yields, and carry interact, not as a calibrated production pricing engine.
