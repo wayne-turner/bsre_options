@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bsreoptions"
+version = "0.1.0"
+description = "Black-Scholes-style Monte Carlo engine for real estate options"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.22",
+  "matplotlib>=3.6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=4",
+  "ruff>=0.6",
+]
+
+[project.scripts]
+bsre-options = "bsre_options:main"
+
+[tool.setuptools]
+py-modules = ["bsre_options", "visuals"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+select = [
+  "E",
+  "F",
+  "I",
+]
+ignore = [
+  "E203",
+]
+src = ["."]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--cov=bsre_options",
+  "--cov=visuals",
+  "--cov-report=term-missing",
+]
+testpaths = [
+  ".",
+]
+python_files = [
+  "test_*.py",
+]
+
+[tool.coverage.run]
+source = [
+  "bsre_options",
+  "visuals",
+]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
