@@ -4,7 +4,7 @@ BSREOptions offers an adaptation of the traditional Black-Scholes model, tailore
 The repository contains:
 * `BSREOptions`: core simulation and pricing engine
 * `visuals`: dark-themed plotting helpers for simulated paths and distributions
-* A minimal CLI entry point exposed as `bsre-options`
+* CLI entry point `bsre-options` and an optional Streamlit UI in `ui_app.py`
 * Tests and CI wiring for reproducibility and basic correctness
 
 
@@ -71,7 +71,7 @@ model = BSREOptions(
     I=10_000,
     seed=123,
 )
-```
+````
 
 ### Argument reference
 
@@ -95,13 +95,14 @@ model = BSREOptions(
 | `I`          | `int`        | Number of Monte Carlo paths.                                                                                              | 1,000 – 100,000+       |
 | `seed`       | `int`/`None` | Seed for `numpy.random.default_rng`. Controls reproducibility; `None` uses entropy-based seeding.                         | Any integer or `None`  |
 
-
-
 ## Quickstart
+
 This section sketches a minimal workflow using the core engine and the plotting utilities.
 
 ### 1. Python usage
+
 Create a model and price a lease option:
+
 ```python
 from bsre_options import BSREOptions
 
@@ -129,6 +130,7 @@ print(f"Estimated lease option value: {price:.2f}")
 ```
 
 To obtain Monte Carlo error estimates and a 95% confidence interval:
+
 ```python
 price, stderr, (ci_low, ci_high) = model.value_option(price_only=False)
 print(f"Price: {price:.4f}")
@@ -137,16 +139,19 @@ print(f"95% CI: [{ci_low:.4f}, {ci_high:.4f}]")
 ```
 
 ### 2. Simulating paths
+
 You can access the simulated property values and short rates directly:
+
 ```python
 V, r = model.simulate_paths()
 print(V.shape)  # (M + 1, I)
 print(r.shape)  # (M + 1, I)
 ```
 
-
 ### 3. Command-line usage
+
 After installation, a small CLI is available:
+
 ```bash
 bsre-options --V0 200000 --K 220000 --T 1.0 --I 10000 --M 100
 ```
@@ -179,7 +184,25 @@ The CLI prints a single line with the estimated option value:
 estimated option value: 12345.678900
 ```
 
+### 4. Interactive Streamlit UI (optional)
+
+If you install the optional UI extras, you can launch an interactive dashboard:
+
+```bash
+pip install "bsreoptions[ui]"
+streamlit run ui_app.py
+```
+
+Alternatively, you can run the app module directly:
+
+```bash
+streamlit run ui_app.py
+```
+
+<img src="assets/streamlit.png" alt="BSREOptions Streamlit dashboard with parameter sliders on the left and option value metrics, simulated paths, distributions, price surface, sensitivities, and summary tables on the main canvas."/>
+
 ## Visualization helpers (`visuals` module)
+
 The `visuals` module provides dark-themed plots for simulated data using `matplotlib`.
 
 ```python
@@ -190,7 +213,8 @@ from bsre_options import BSREOptions
 from visuals import (
     plot_paths,
     plot_final_distribution,
-    plot_rate_value_heatmap,
+    plot_price_surface_3d,
+    plot_sensitivity_bars,
 )
 
 model = BSREOptions(
@@ -220,43 +244,41 @@ fig_paths = plot_paths(V, r, max_paths=100, show=True, save_path=Path("assets/pa
 
 # histogram of terminal values
 fig_hist = plot_final_distribution(V, show=True, save_path=Path("assets/final_dist.png"))
-
-# joint distribution of (r, V)
-fig_heat = plot_rate_value_heatmap(r, V, show=True, save_path=Path("assets/rate_value_heatmap.png"))
 ```
 
-
-
 ### Simulated real estate value paths
+
 `plot_paths` visualizes a subset of simulated property value paths over time:
+
 * Each line represents one Monte Carlo scenario for the property value.
 * The maximum number of drawn paths is controlled by `max_paths`.
 * The plot uses a dark background with gray paths for visual contrast.
 
 ### Distribution of final real estate values
+
 `plot_final_distribution` plots a histogram of `V_T`, the terminal property values:
+
 * The number of bins is controlled by `bins`.
 * The figure shows the empirical distribution across all simulated paths.
 
-### Heatmap of interest rates and values
-`plot_rate_value_heatmap` creates a 2D histogram over all `(r_t, V_t)` pairs across time and scenarios:
-* Both the short rate and property value arrays are flattened.
-* A 2D histogram is computed and displayed as a gray-scale heatmap.
+### Option price surface and sensitivities
 
+For more advanced diagnostics, `plot_price_surface_3d` can render a price surface over strike and maturity, and `plot_sensitivity_bars` can summarize one-way parameter bumps in a tornado-style bar chart. These are used in the interactive UI but can also be called directly from Python scripts.
 
 ## Simulated Real Estate Value Paths
+
 Visualization helps in understanding how real estate values might change over time under different scenarios, providing insights into the variability and risk associated with real estate investments. Each gray line represents a possible trajectory of real estate value, starting from an initial value and evolving according to specified market dynamics and random fluctuations.
 
-<img src="assets/re_value_paths.png" width="70%" />
+<img src="assets/paths.png"/>
 
 ## Distribution of Final Real Estate Values
+
 The distribution of final real estate values across all simulated scenarios at the end of the specified time period. This gauges the spread of possible end values, highlighting the risks and opportunities in real estate investments based on the model's assumptions and parameters.
 
-<img src="assets/re_value_dist.png" width="70%" />
-
-
+<img src="assets/final_dist.png"/>
 
 ## Output interpretation
+
 The main numerical output of BSREOptions is the estimated value of a European call option on the terminal property value:
 
 * **Option payoff**: `max(V_T − K, 0)` on each path.
@@ -278,17 +300,40 @@ price, stderr, (ci_low, ci_high) = model.value_option(price_only=False)
 ```
 
 you additionally obtain:
+
 * `stderr`: the standard error of the Monte Carlo estimate.
 * `(ci_low, ci_high)`: a 95% confidence interval based on a normal approximation.
 
-
 Interpretation guidelines:
+
 * A **higher** option value indicates more valuable upside at maturity, given the current property value, strike, and process parameters.
 * Values **close to zero** indicate an option that is at, or out of, the money in most simulated scenarios under the current assumptions.
 * The **confidence interval width** reflects Monte Carlo noise; tightening it requires more paths (`I`) or variance-reduction techniques (not implemented here).
 
-
 ## Conclusion
+
 * **Educational focus**: BSREOptions is designed as a compact, inspectable example of Monte Carlo pricing with stochastic short rates and variance in a real-estate context.
 * **Extensible**: The structure is intentionally simple, making it a convenient starting point for experimenting with alternative dynamics, payoffs, or calibration schemes.
 * **Practical takeaway**: Use the model to explore how assumptions about rates, variance, yields, and carry interact, not as a calibrated production pricing engine.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

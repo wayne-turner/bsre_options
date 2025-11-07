@@ -4,17 +4,30 @@ from pathlib import Path
 from typing import Optional
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.collections import LineCollection
+from matplotlib.colors import Normalize
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 
 
-
-__all__ = ["plot_paths","plot_final_distribution","plot_rate_value_heatmap",]
+__all__ = [
+    "plot_paths",
+    "plot_final_distribution",
+    "plot_price_surface_3d",
+    "plot_sensitivity_bars",
+]
 
 
 def _apply_dark_theme(ax: Axes) -> None:
     fig = ax.get_figure()
     fig.patch.set_facecolor("#121212")
     ax.set_facecolor("#121212")
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
     ax.tick_params(axis="x", colors="white")
     ax.tick_params(axis="y", colors="white")
+    if hasattr(ax, "zaxis"):
+        ax.tick_params(axis="z", colors="white")
 
 
 def _maybe_save_and_show(
@@ -30,31 +43,90 @@ def _maybe_save_and_show(
         plt.show()
 
 
+def _colored_line(
+    ax: Axes,
+    x: np.ndarray,
+    y: np.ndarray,
+    cmap: str = "hot",
+    linewidth: float = 2.0,
+) -> Optional[LineCollection]:
+    """Add a 2D line whose color varies along y using a colormap."""
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    points = np.column_stack([x, y]).reshape(-1, 1, 2)
+
+    if len(points) < 2:
+        return None
+
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+    y_min = float(np.min(y))
+    y_max = float(np.max(y))
+    if y_max == y_min:
+        y_min -= 0.5
+        y_max += 0.5
+
+    norm = Normalize(y_min, y_max)
+    lc = LineCollection(segments, cmap=cmap, norm=norm)
+    lc.set_array(y)
+    lc.set_linewidth(linewidth)
+    ax.add_collection(lc)
+    return lc
+
+
+def _vertical_colored_line(
+    ax: Axes,
+    x_val: float,
+    y_min: float,
+    y_max: float,
+    cmap: str = "hot",
+    linewidth: float = 2.0,
+    n_segments: int = 256,
+) -> LineCollection:
+    """Add a vertical line with a colormap gradient along y."""
+    y = np.linspace(y_min, y_max, n_segments)
+    x = np.full_like(y, float(x_val))
+
+    points = np.column_stack([x, y]).reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+    norm = Normalize(y_min, y_max)
+    lc = LineCollection(segments, cmap=cmap, norm=norm)
+    lc.set_array(y)
+    lc.set_linewidth(linewidth)
+
+    ax.add_collection(lc)
+    return lc
+
+
 def plot_paths(
     V: np.ndarray,
     r: Optional[np.ndarray] = None,
     max_paths: int = 100,
     show: bool = False,
     save_path: Optional[str | Path] = None,
+    show_mean: bool = True,
+    cmap: str = "hot",
 ) -> Figure:
     """
-    plot monte carlo paths for the property value
+    Plot Monte Carlo paths for the property value.
 
-    parameters:
-    V : np.ndarray
-        simulated property values with shape (M+1, I).
-    r : np.ndarray, optional
-        simulated short rate paths (currently unused).
+    Parameters:
+    V : ndarray, shape (M+1, I)
+        Simulated property values.
+    r : ndarray or None
+        Short rate paths (unused, kept for API symmetry).
     max_paths : int
-        maximum number of paths to draw.
+        Maximum number of individual paths to draw.
     show : bool
-        if True, call plt.show() on the figure.
-    save_path : str or Path, optional
-        if provided, save the figure to this location.
-
-    returns:
-    figure, created by matplotlib
-    
+        If True, call plt.show().
+    save_path : str | Path or None
+        If not None, save the figure.
+    show_mean : bool
+        If True, overlay the mean path as a gradient-colored line.
+    cmap : str
+        Matplotlib colormap name for the highlighted mean path.
     """
     fig, ax = plt.subplots(figsize=(10, 6))
     _apply_dark_theme(ax)
@@ -63,7 +135,11 @@ def plot_paths(
     for i in range(num_paths):
         ax.plot(V[:, i], alpha=0.5, color="gray")
 
-    ax.set_title("Simulated Real Estate Value Paths", color="white")
+    if show_mean:
+        mean_path = np.mean(V, axis=1)
+        x = np.arange(V.shape[0])
+        _colored_line(ax, x, mean_path, cmap=cmap, linewidth=2.0)
+
     ax.set_xlabel("Time step", color="white")
     ax.set_ylabel("Real Estate Value", color="white")
 
@@ -76,23 +152,25 @@ def plot_final_distribution(
     bins: int = 50,
     show: bool = False,
     save_path: Optional[str | Path] = None,
+    show_mean: bool = True,
+    cmap: str = "hot",
 ) -> Figure:
     """
-    plot histogram of final property values
+    Plot histogram of terminal property values V_T.
 
-    parameters:
-    V : np.ndarray
-        simulated property values with shape (M+1, I).
+    Parameters:
+    V : ndarray, shape (M+1, I)
+        Simulated property values.
     bins : int
-        number of histogram bins.
+        Number of histogram bins.
     show : bool
-        if True, call plt.show() on the figure.
-    save_path : str or Path, optional
-        if provided, save the figure to this location.
-
-    returns:
-    figure, created by matplotlib
-
+        If True, call plt.show().
+    save_path : str | Path or None
+        If not None, save the figure.
+    show_mean : bool
+        If True, overlay a vertical gradient line at the mean terminal value.
+    cmap : str
+        Matplotlib colormap name for the highlighted mean line.
     """
     V_T = V[-1, :]
 
@@ -100,7 +178,13 @@ def plot_final_distribution(
     _apply_dark_theme(ax)
 
     ax.hist(V_T, bins=bins, alpha=0.75, color="gray")
-    ax.set_title("Distribution of Final Real Estate Values", color="white")
+
+    if show_mean:
+        mean_VT = float(np.mean(V_T))
+        ymin, ymax = ax.get_ylim()
+
+        _vertical_colored_line(ax, mean_VT, ymin, ymax, cmap=cmap, linewidth=2.0)
+    
     ax.set_xlabel("Final Real Estate Value", color="white")
     ax.set_ylabel("Frequency", color="white")
 
@@ -108,84 +192,111 @@ def plot_final_distribution(
     return fig
 
 
-def plot_rate_value_heatmap(
-    r: np.ndarray,
-    V: np.ndarray,
-    bins: int = 50,
+def plot_price_surface_3d(
+    K_mesh: np.ndarray,
+    T_mesh: np.ndarray,
+    P: np.ndarray,
     show: bool = False,
     save_path: Optional[str | Path] = None,
 ) -> Figure:
     """
-    plot a heatmap of the joint distribution of interest rates & values
-
-    parameters:
-    r : np.ndarray
-        simulated short rate paths with shape (M+1, I).
-    V : np.ndarray
-        simulated property values with shape (M+1, I).
-    bins : int
-        number of bins along each axis.
-    show : bool
-        if True, call plt.show() on the figure.
-    save_path : str or Path, optional
-        if provided, save the figure to this location.
-
-    returns:
-    figure, created by matplotlib
-
+    3D surface of option price P(K, T).
+    Parameters:
+    K_mesh, T_mesh : 2D arrays
+        Meshgrids of strike and maturity.
+    P : 2D array
+        Prices corresponding to each (K, T) pair.
     """
-    r_flat = r.flatten()
-    V_flat = V.flatten()
-    heatmap, xedges, yedges = np.histogram2d(r_flat, V_flat, bins=bins)
-    extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig = plt.figure(figsize=(10, 6))
+    ax = fig.add_subplot(111, projection="3d")
     _apply_dark_theme(ax)
-
-    im = ax.imshow(
-        heatmap.T,
-        extent=extent,
-        origin="lower",
-        aspect="auto",
-        cmap="gray",
+    surf = ax.plot_surface(
+        K_mesh,
+        T_mesh,
+        P,
+        rstride=1,
+        cstride=1,
+        linewidth=0,
+        antialiased=True,
+        cmap="hot",
+        alpha=0.95,
     )
-    ax.set_title("Heatmap of Interest Rates and Real Estate Values", color="white")
-    ax.set_xlabel("Interest Rate", color="white")
-    ax.set_ylabel("Real Estate Value", color="white")
-
-    cbar = fig.colorbar(im, ax=ax, label="Frequency")
-    cbar.ax.yaxis.set_tick_params(color="white")
-    for label in cbar.ax.get_yticklabels():
-        label.set_color("white")
-
+    ax.set_xlabel("Strike K", color="white")
+    ax.set_ylabel("Maturity T (years)", color="white")
+    ax.set_zlabel("Option price", color="white")
+    cbar = fig.colorbar(surf, ax=ax, shrink=0.6, aspect=10)
+    cbar.set_label('Price', color='white')
+    cbar.ax.tick_params(labelcolor='white')
+    ax.view_init(elev=25, azim=-135)
     _maybe_save_and_show(fig, save_path, show)
     return fig
 
+def plot_sensitivity_bars(
+    param_names: list[str],
+    price_low: list[float] | np.ndarray,
+    price_high: list[float] | np.ndarray,
+    base_price: float,
+    show: bool = False,
+    save_path: Optional[str | Path] = None,
+    highlight_base: bool = True,
+    cmap: str = "hot",
+) -> Figure:
+    """
+    Horizontal bar / tornado-style chart of one-way parameter sensitivities.
 
-if __name__ == "__main__":
-    from bsre_options import BSREOptions
+    Parameters:
+    param_names : list[str]
+        Parameter names corresponding to each bar.
+    price_low : array-like
+        Option prices with the parameter bumped down.
+    price_high : array-like
+        Option prices with the parameter bumped up.
+    base_price : float
+        Option price at the current/base parameter set.
+    show : bool
+        If True, call plt.show().
+    save_path : str | Path or None
+        If not None, save the figure.
+    highlight_base : bool
+        If True, draw a vertical gradient line at the base price.
+    cmap : str
+        Matplotlib colormap name for the highlighted base line.
+    """
+    low_arr = np.asarray(price_low, dtype=float)
+    high_arr = np.asarray(price_high, dtype=float)
 
-    model = BSREOptions(
-        V0=200000.0,
-        K=220000.0,
-        T=1.0,
-        r0=0.03,
-        kappa_r=0.3,
-        theta_r=0.03,
-        sigma_r=0.01,
-        v0=0.02,
-        kappa_v=1.0,
-        theta_v=0.02,
-        sigma_v=0.1,
-        rho=-0.5,
-        q=0.02,
-        carry_cost=0.0,
-        M=100,
-        I=10000,
-        seed=123,
-    )
-    V, r = model.simulate_paths()
+    if low_arr.shape != high_arr.shape:
+        raise ValueError("price_low and price_high must have the same shape.")
+    if low_arr.ndim != 1:
+        raise ValueError("price_low and price_high must be 1D arrays.")
+    if len(param_names) != low_arr.shape[0]:
+        raise ValueError("param_names and price arrays must have the same length.")
 
-    plot_paths(V, r, max_paths=100, show=True, save_path=Path("assets/paths.png"))
-    plot_final_distribution(V, show=True, save_path=Path("assets/final_dist.png"))
-    plot_rate_value_heatmap(r, V, show=True, save_path=Path("assets/rate_value_heatmap.png"))
+    delta = np.abs(high_arr - low_arr)
+    order = np.argsort(delta)[::-1]
+
+    names_sorted = [param_names[i] for i in order]
+    low_sorted = low_arr[order]
+    high_sorted = high_arr[order]
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    _apply_dark_theme(ax)
+
+    y_pos = np.arange(len(names_sorted))
+
+    for i, (lo, hi) in enumerate(zip(low_sorted, high_sorted)):
+        left = min(lo, hi)
+        width = abs(hi - lo)
+        ax.barh(y_pos[i], width, left=left, alpha=0.8, color="gray")
+
+    if highlight_base:
+        ymin, ymax = ax.get_ylim()
+
+        _vertical_colored_line(ax, base_price, ymin, ymax, cmap=cmap, linewidth=1.8)
+
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(names_sorted, color="white")
+    ax.set_xlabel("Option price", color="white")
+
+    _maybe_save_and_show(fig, save_path, show)
+    return fig
