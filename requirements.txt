@@ -1,0 +1,6 @@
+numpy>=1.22
+matplotlib>=3.6
+streamlit>=1.30
+pytest>=8
+pytest-cov>=4
+ruff>=0.6
